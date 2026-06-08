@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>麻将消除</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: linear-gradient(160deg, #0d1b2a, #1b2838 40%, #162032);
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none;
+  color: #e0e0e0;
+}
+#wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px; width: 100%; max-width: 440px; }
+
+#top { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.ch { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 5px 12px; display: flex; align-items: center; gap: 5px; font-size: 13px; backdrop-filter: blur(6px); }
+.ch .v { font-weight: 700; font-size: 15px; min-width: 24px; text-align: center; }
+#mv .v { color: #ffd700; }
+#sc .v { color: #7ec8e3; }
+#lv .v { color: #66bb6a; }
+
+#bar { width: 100%; max-width: 400px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+#fill { height: 100%; background: linear-gradient(90deg, #66bb6a, #ffd700, #ff6b6b); border-radius: 3px; transition: width 0.4s; width: 0%; }
+
+#outer { position: relative; background: rgba(0,0,0,0.35); border-radius: 16px; padding: 8px; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05); }
+#board { display: grid; gap: 3px; position: relative; }
+
+.tile {
+  border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  font-weight: 900; cursor: grab; position: relative;
+  background: linear-gradient(160deg, #fffef5 0%, #f5f0dc 40%, #e8dcc0 100%);
+  border: 1.5px solid #c8b880;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 2px rgba(0,0,0,0.08);
+  color: #1a1a1a; line-height: 1; overflow: hidden; transition: transform 0.12s, box-shadow 0.12s;
+}
+.tile:active { cursor: grabbing; }
+.tile.red { color: #c62828; }
+.tile.blue { color: #1565c0; }
+.tile.green { color: #2e7d32; }
+.tile.empty { background: transparent !important; border-color: transparent !important; box-shadow: none !important; cursor: default; pointer-events: none; }
+.tile.empty::after { display: none; }
+.tile::after { content: ''; position: absolute; top: 2px; left: 2px; right: 2px; bottom: 2px; border: 1px solid rgba(180,160,100,0.25); border-radius: 4px; pointer-events: none; }
+
+.tile.matched { animation: mk 0.5s ease forwards; z-index: 10; }
+@keyframes mk { 0% { transform: scale(1); opacity: 1; } 30% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(0); opacity: 0; } }
+
+#ind { position: absolute; border-radius: 6px; border: 2px dashed rgba(255,215,0,0.45); background: rgba(255,215,0,0.06); pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 5; }
+#ind.show { opacity: 1; }
+
+.pf { position: fixed; font-size: 20px; font-weight: 900; color: #ffd700; text-shadow: 0 0 10px rgba(255,215,0,0.5); pointer-events: none; z-index: 999; animation: pf 1s ease-out forwards; }
+@keyframes pf { 0% { opacity: 1; transform: translateY(0) scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-44px) scale(1.2); } }
+
+#btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.btn { padding: 8px 16px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); color: #e0e0e0; font-size: 13px; font-weight: 600; cursor: pointer; backdrop-filter: blur(6px); transition: all 0.15s; font-family: inherit; letter-spacing: 0.3px; }
+.btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.25); }
+.btn:active { transform: scale(0.95); }
+#bs { font-size: 16px; padding: 8px 12px; }
+
+#ov { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.35s; backdrop-filter: blur(4px); }
+#ov.show { opacity: 1; pointer-events: all; }
+#md { background: linear-gradient(145deg, #1e2d4a, #15203a); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 32px 28px; text-align: center; max-width: 310px; width: 86%; box-shadow: 0 16px 48px rgba(0,0,0,0.5); transform: scale(0.85); transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+#ov.show #md { transform: scale(1); }
+#md h2 { font-size: 24px; margin-bottom: 8px; }
+#md p { color: rgba(255,255,255,0.6); font-size: 14px; line-height: 1.7; margin-bottom: 20px; }
+.bp { padding: 10px 36px; font-size: 15px; font-weight: 700; border: none; border-radius: 11px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; font-family: inherit; }
+.bp:hover { transform: scale(1.04); box-shadow: 0 4px 20px rgba(255,170,0,0.4); }
+
+#fx { position: fixed; inset: 0; pointer-events: none; z-index: 500; }
+.st { position: absolute; width: 5px; height: 5px; border-radius: 50%; animation: sb 0.7s ease-out forwards; }
+@keyframes sb { 0% { opacity: 1; transform: translate(0,0) scale(1); } 100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(0.2); } }
+
+@media (max-width: 420px) { .ch { padding: 4px 9px; font-size: 12px; } }
+</style>
+</head>
+<body>
+
+<div id="fx"></div>
+<div id="wrap">
+  <div id="top">
+    <div class="ch">🀄 关卡 <span class="v" id="lv">1</span></div>
+    <div class="ch" id="mv">👣 步数 <span class="v" id="mvn">20</span></div>
+    <div class="ch" id="sc">⭐ 分数 <span class="v" id="scn">0</span></div>
+  </div>
+  <div id="bar"><div id="fill"></div></div>
+  <div id="outer">
+    <div id="ind"></div>
+    <div id="board"></div>
+  </div>
+  <div id="btns">
+    <button class="btn" id="b-undo">↩ 撤销</button>
+    <button class="btn" id="bs">🔊</button>
+    <button class="btn" id="b-restart">🔄 重来</button>
+    <button class="btn" id="b-shuffle">🔀 重排</button>
+  </div>
+</div>
+<div id="ov">
+  <div id="md">
+    <h2 id="mt"></h2>
+    <p id="mp"></p>
+    <button class="bp" id="mb"></button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ===== 牌型 =====
+  var TILES = [
+    {id:"w1",t:"一万",c:"red"},{id:"w2",t:"二万",c:"red"},{id:"w3",t:"三万",c:"red"},
+    {id:"w4",t:"四万",c:"red"},{id:"w5",t:"五万",c:"red"},{id:"w6",t:"六万",c:"red"},
+    {id:"w7",t:"七万",c:"red"},{id:"w8",t:"八万",c:"red"},{id:"w9",t:"九万",c:"red"},
+    {id:"t1",t:"一条",c:"blue"},{id:"t2",t:"二条",c:"blue"},{id:"t3",t:"三条",c:"blue"},
+    {id:"t4",t:"四条",c:"blue"},{id:"t5",t:"五条",c:"blue"},{id:"t6",t:"六条",c:"blue"},
+    {id:"t7",t:"七条",c:"blue"},{id:"t8",t:"八条",c:"blue"},{id:"t9",t:"九条",c:"blue"},
+    {id:"b1",t:"一筒",c:"green"},{id:"b2",t:"二筒",c:"green"},{id:"b3",t:"三筒",c:"green"},
+    {id:"b4",t:"四筒",c:"green"},{id:"b5",t:"五筒",c:"green"},{id:"b6",t:"六筒",c:"green"},
+    {id:"b7",t:"七筒",c:"green"},{id:"b8",t:"八筒",c:"green"},{id:"b9",t:"九筒",c:"green"},
+    {id:"z1",t:"东",c:"red"},{id:"z2",t:"南",c:"red"},
+    {id:"z3",t:"西",c:"red"},{id:"z4",t:"北",c:"red"},
+    {id:"z5",t:"中",c:"red"},{id:"z6",t:"发",c:"green"},{id:"z7",t:"白",c:""}
+  ];
+
+  // ===== 状态 =====
+  var ROWS = 6, COLS = 5, board = [], moves = 20, score = 0, lv = 1;
+  var active = false, hist = [], snd = true, actx = null, bgmT = null;
+  var pd = null, pR = null, pC = null;
+
+  // ===== 音频 =====
+  function getAC() {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+    return actx;
+  }
+
+  function sfxSlide() {
+    if (!snd) return;
+    var c = getAC(), n = c.currentTime;
+    var len = Math.floor(c.sampleRate * 0.11);
+    var buf = c.createBuffer(1, len, c.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.35;
+    var src = c.createBufferSource();
+    src.buffer = buf;
+    var bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 650;
+    bp.Q.value = 1.2;
+    var gn = c.createGain();
+    gn.gain.setValueAtTime(0.18, n);
+    gn.gain.exponentialRampToValueAtTime(0.001, n + 0.11);
+    src.connect(bp);
+    bp.connect(gn);
+    gn.connect(c.destination);
+    src.start();
+    src.stop(n + 0.12);
+  }
+
+  function sfxMatch() {
+    if (!snd) return;
+    var c = getAC(), n = c.currentTime;
+    [0, 0.06, 0.12].forEach(function(d, i) {
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime([1400, 2100, 2800][i], n + d);
+      o.frequency.exponentialRampToValueAtTime(500, n + d + 0.1);
+      g.gain.setValueAtTime(0.16 / (i + 1), n + d);
+      g.gain.exponentialRampToValueAtTime(0.001, n + d + 0.12);
+      o.connect(g);
+      g.connect(c.destination);
+      o.start(n + d);
+      o.stop(n + d + 0.12);
+    });
+  }
+
+  function sfxWin() {
+    if (!snd) return;
+    var c = getAC(), n = c.currentTime;
+    [523.25, 659.25, 783.99, 1046.5].forEach(function(f, i) {
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = "sine";
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.13, n + i * 0.13);
+      g.gain.exponentialRampToValueAtTime(0.001, n + i * 0.13 + 0.4);
+      o.connect(g);
+      g.connect(c.destination);
+      o.start(n + i * 0.13);
+      o.stop(n + i * 0.13 + 0.4);
+    });
+  }
+
+  function sfxLose() {
+    if (!snd) return;
+    var c = getAC(), n = c.currentTime;
+    [440, 370, 311, 233].forEach(function(f, i) {
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = "triangle";
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.12, n + i * 0.17);
+      g.gain.exponentialRampToValueAtTime(0.001, n + i * 0.17 + 0.3);
+      o.connect(g);
+      g.connect(c.destination);
+      o.start(n + i * 0.17);
+      o.stop(n + i * 0.17 + 0.3);
+    });
+  }
+
+  // ===== BGM =====
+  function startBGM() {
+    if (!snd || bgmT) return;
+    var MELODY = [262,294,330,349,392,349,330,294,262,330,392,523,392,330,294,262,349,392,440,392,349,330,294,330,262,294,330,262,294,330,349,392];
+    var pos = 0;
+    bgmT = setInterval(function() {
+      if (!snd) { clearInterval(bgmT); bgmT = null; return; }
+      var c = getAC(), now = c.currentTime, f = MELODY[pos % MELODY.length];
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = "sine";
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.025, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      o.connect(g);
+      g.connect(c.destination);
+      o.start(now);
+      o.stop(now + 0.4);
+      pos++;
+    }, 480);
+  }
+  function stopBGM() { if (bgmT) { clearInterval(bgmT); bgmT = null; } }
+
+  // ===== 关卡 =====
+  function lvConf(l) {
+    if (l <= 2) return { r: 5, c: 4, m: 20 };
+    if (l <= 5) return { r: 6, c: 5, m: 22 };
+    if (l <= 8) return { r: 6, c: 6, m: 25 };
+    if (l <= 12) return { r: 7, c: 6, m: 28 };
+    return { r: 7, c: 7, m: 30 };
+  }
+
+  // ===== 初始化 =====
+  function init() {
+    var cf = lvConf(lv);
+    ROWS = cf.r;
+    COLS = cf.c;
+    moves = cf.m;
+    active = true;
+    hist = [];
+    var cells = ROWS * COLS, pairN = Math.floor(cells / 2), tiles = [];
+    for (var i = 0; i < pairN; i++) {
+      var td = TILES[i % TILES.length];
+      tiles.push({ id: td.id, t: td.t, c: td.c });
+      tiles.push({ id: td.id, t: td.t, c: td.c });
+    }
+    if (cells % 2 === 1) tiles.pop();
+    for (var i = tiles.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = tiles[i]; tiles[i] = tiles[j]; tiles[j] = tmp;
+    }
+    board = [];
+    var idx = 0;
+    for (var r = 0; r < ROWS; r++) {
+      board[r] = [];
+      for (var cc = 0; cc < COLS; cc++) {
+        board[r][cc] = idx < tiles.length ? tiles[idx] : null;
+        idx++;
+      }
+    }
+    updUI();
+    rend();
+    if (snd) startBGM();
+  }
+
+  // ===== 渲染 =====
+  function tileSize() {
+    var mw = Math.min(window.innerWidth - 36, 416);
+    var tw = Math.floor((mw - (COLS + 1) * 3) / COLS);
+    return [tw, Math.floor(tw * 1.3)];
+  }
+
+  function rend() {
+    var bel = document.getElementById("board");
+    var sz = tileSize(), tw = sz[0], th = sz[1];
+    bel.style.gridTemplateColumns = "repeat(" + COLS + ", " + tw + "px)";
+    bel.style.gridTemplateRows = "repeat(" + ROWS + ", " + th + "px)";
+    bel.style.gap = "3px";
+    bel.innerHTML = "";
+    for (var r = 0; r < ROWS; r++) {
+      for (var c = 0; c < COLS; c++) {
+        var t = board[r][c];
+        var el = document.createElement("div");
+        var cls = "tile" + (t ? "" : " empty") + (t && t.c ? " " + t.c : "");
+        el.className = cls;
+        el.style.width = tw + "px";
+        el.style.height = th + "px";
+        el.style.fontSize = Math.floor(tw * 0.3) + "px";
+        if (t) el.textContent = t.t;
+        el.dataset.r = r;
+        el.dataset.c = c;
+        bel.appendChild(el);
+      }
+    }
+    var rem = 0, tot = 0;
+    for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) { tot++; if (board[r][c]) rem++; }
+    var pct = tot > 0 ? Math.max(0, 100 - Math.round(rem / tot * 100)) : 100;
+    document.getElementById("fill").style.width = pct + "%";
+  }
+
+  // ===== 交互 =====
+  document.getElementById("board").addEventListener("pointerdown", function(e) {
+    if (!active) return;
+    var el = e.target.closest(".tile");
+    if (!el || el.classList.contains("empty")) return;
+    pd = { x: e.clientX, y: e.clientY };
+    pR = parseInt(el.dataset.r, 10);
+    pC = parseInt(el.dataset.c, 10);
+    el.setPointerCapture(e.pointerId);
+    showInd(pR, pC);
+  });
+
+  document.getElementById("board").addEventListener("pointermove", function(e) {
+    if (!pd) return;
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    if (el) {
+      var tt = el.closest(".tile");
+      if (tt && !tt.classList.contains("empty")) showInd(parseInt(tt.dataset.r, 10), parseInt(tt.dataset.c, 10));
+    }
+  });
+
+  document.addEventListener("pointerup", function(e) {
+    if (!pd) return;
+    hideInd();
+    var dx = e.clientX - pd.x, dy = e.clientY - pd.y;
+    var ax = Math.abs(dx), ay = Math.abs(dy);
+    var moved = false;
+    if (ax > 16 || ay > 16) {
+      if (ax > ay) moved = slideRow(pR, dx > 0 ? 1 : -1);
+      else moved = slideCol(pC, dy > 0 ? 1 : -1);
+    }
+    if (moved) { sfxSlide(); moves--; updUI(); setTimeout(doElim, 200); }
+    pd = null; pR = null; pC = null;
+  });
+
+  function showInd(r, c) {
+    var id = document.getElementById("ind");
+    var sz = tileSize(), tw = sz[0], th = sz[1];
+    id.style.top = (r * (th + 3)) + "px";
+    id.style.left = "0px";
+    id.style.width = (COLS * (tw + 3) - 3) + "px";
+    id.style.height = th + "px";
+    id.classList.add("show");
+  }
+  function hideInd() { document.getElementById("ind").classList.remove("show"); }
+
+  // ===== 滑动(循环移位) =====
+  function cloneBoard() {
+    return board.map(function(rw) {
+      return rw.map(function(cc) { return cc ? { id: cc.id, t: cc.t, c: cc.c } : null; });
+    });
+  }
+  function pushHist() {
+    hist.push({ b: cloneBoard(), m: moves, s: score });
+    if (hist.length > 12) hist.shift();
+  }
+
+  function slideRow(row, dir) {
+    pushHist();
+    if (dir > 0) {
+      var last = board[row][COLS - 1];
+      for (var c = COLS - 1; c > 0; c--) board[row][c] = board[row][c - 1];
+      board[row][0] = last;
+    } else {
+      var first = board[row][0];
+      for (var c = 0; c < COLS - 1; c++) board[row][c] = board[row][c + 1];
+      board[row][COLS - 1] = first;
+    }
+    rend();
+    return true;
+  }
+
+  function slideCol(col, dir) {
+    pushHist();
+    if (dir > 0) {
+      var last = board[ROWS - 1][col];
+      for (var r = ROWS - 1; r > 0; r--) board[r][col] = board[r - 1][col];
+      board[0][col] = last;
+    } else {
+      var first = board[0][col];
+      for (var r = 0; r < ROWS - 1; r++) board[r][col] = board[r + 1][col];
+      board[ROWS - 1][col] = first;
+    }
+    rend();
+    return true;
+  }
+
+  // ===== 消除检测 =====
+  function doElim() {
+    if (!active) return;
+    var toRem = {};
+    var has = false;
+    for (var r = 0; r < ROWS; r++) {
+      for (var c = 0; c < COLS; c++) {
+        if (!board[r][c]) continue;
+        if (c + 1 < COLS && board[r][c + 1] && board[r][c].id === board[r][c + 1].id) {
+          toRem[r + "," + c] = true;
+          toRem[r + "," + (c + 1)] = true;
+          has = true;
+        }
+        if (r + 1 < ROWS && board[r + 1] && board[r + 1][c] && board[r][c].id === board[r + 1][c].id) {
+          toRem[r + "," + c] = true;
+          toRem[(r + 1) + "," + c] = true;
+          has = true;
+        }
+      }
+    }
+    if (!has) { afterMove(); return; }
+    var keys = Object.keys(toRem);
+    var els = document.querySelectorAll(".tile");
+    for (var i = 0; i < keys.length; i++) {
+      var p = keys[i].split(",");
+      var rr = parseInt(p[0], 10), cc = parseInt(p[1], 10);
+      var idx = rr * COLS + cc;
+      if (els[idx] && !els[idx].classList.contains("empty")) {
+        els[idx].classList.add("matched");
+        fxAt(rr, cc);
+      }
+    }
+    score += keys.length * 10;
+    updUI();
+    setTimeout(function() {
+      for (var i = 0; i < keys.length; i++) {
+        var p = keys[i].split(",");
+        board[parseInt(p[0], 10)][parseInt(p[1], 10)] = null;
+      }
+      rend();
+      setTimeout(function() { doElim(); afterMove(); }, 80);
+    }, 480);
+  }
+
+  function afterMove() {
+    if (checkWin()) { sfxWin(); showModal("win"); }
+    else if (moves <= 0) { sfxLose(); showModal("lose"); }
+  }
+
+  function checkWin() {
+    for (var r = 0; r < ROWS; r++)
+      for (var c = 0; c < COLS; c++)
+        if (board[r][c] !== null) return false;
+    return true;
+  }
+
+  // ===== 粒子特效 =====
+  function fxAt(r, c) {
+    var sel = ".tile:nth-child(" + (r * COLS + c + 1) + ")";
+    var el = document.querySelectorAll(".tile")[r * COLS + c];
+    if (!el) return;
+    var rect = el.getBoundingClientRect();
+    var cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    var fl = document.getElementById("fx");
+    var cl = ["#ffd700","#ff6b6b","#7ec8e3","#66bb6a","#ffa726","#ce93d8"];
+    for (var i = 0; i < 8; i++) {
+      var p = document.createElement("div");
+      p.className = "st";
+      var angle = Math.random() * Math.PI * 2;
+      var dist = 22 + Math.random() * 40;
+      p.style.left = cx + "px";
+      p.style.top = cy + "px";
+      p.style.background = cl[Math.floor(Math.random() * cl.length)];
+      p.style.setProperty("--x", Math.cos(angle) * dist + "px");
+      p.style.setProperty("--y", Math.sin(angle) * dist + "px");
+      fl.appendChild(p);
+      (function(pp) { setTimeout(function() { pp.remove(); }, 750); })(p);
+    }
+    var pop = document.createElement("div");
+    pop.className = "pf";
+    pop.textContent = "+10";
+    pop.style.left = (cx - 12) + "px";
+    pop.style.top = (cy - 18) + "px";
+    document.body.appendChild(pop);
+    setTimeout(function() { pop.remove(); }, 950);
+  }
+
+  // ===== UI =====
+  function updUI() {
+    document.getElementById("mvn").textContent = moves;
+    document.getElementById("scn").textContent = score;
+    document.getElementById("lv").textContent = lv;
+    var el = document.getElementById("mvn");
+    if (moves <= 3) el.style.color = "#ff6b6b";
+    else if (moves <= 6) el.style.color = "#ffa726";
+    else el.style.color = "#ffd700";
+  }
+
+  // ===== 撤销 =====
+  function undo() {
+    if (hist.length === 0 || !active) return;
+    var s = hist.pop();
+    board = s.b;
+    moves = s.m;
+    score = s.s;
+    updUI();
+    rend();
+  }
+
+  // ===== 重排 =====
+  function shuffleB() {
+    if (!active || moves <= 0) return;
+    pushHist();
+    var tiles = [];
+    for (var r = 0; r < ROWS; r++)
+      for (var c = 0; c < COLS; c++)
+        if (board[r][c]) tiles.push(board[r][c]);
+    for (var i = tiles.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = tiles[i]; tiles[i] = tiles[j]; tiles[j] = tmp;
+    }
+    var idx = 0;
+    for (var r = 0; r < ROWS; r++)
+      for (var c = 0; c < COLS; c++)
+        board[r][c] = idx < tiles.length ? tiles[idx++] : null;
+    moves--;
+    updUI();
+    rend();
+    sfxSlide();
+    setTimeout(doElim, 250);
+  }
+
+  // ===== 弹窗 =====
+  function showModal(type) {
+    active = false;
+    stopBGM();
+    var ov = document.getElementById("ov");
+    var mt = document.getElementById("mt");
+    var mp = document.getElementById("mp");
+    var mb = document.getElementById("mb");
+    if (type === "win") {
+      mt.textContent = "🎉 恭喜通关！";
+      mp.textContent = "第 " + lv + " 关通过！\n得分：" + score + "　剩余步数：" + moves;
+      mb.textContent = "下一关 →";
+      mb.onclick = function() { ov.classList.remove("show"); lv++; init(); };
+    } else {
+      mt.textContent = "😢 步数用完了";
+      mp.textContent = "第 " + lv + " 关挑战失败\n得分：" + score + "\n再试一次吧！";
+      mb.textContent = "重新挑战";
+      mb.onclick = function() { ov.classList.remove("show"); init(); };
+    }
+    ov.classList.add("show");
+  }
+
+  // ===== 按钮 =====
+  document.getElementById("b-restart").onclick = init;
+  document.getElementById("b-undo").onclick = undo;
+  document.getElementById("b-shuffle").onclick = shuffleB;
+  document.getElementById("bs").onclick = function() {
+    snd = !snd;
+    document.getElementById("bs").textContent = snd ? "🔊" : "🔇";
+    if (snd) startBGM(); else stopBGM();
+  };
+
+  // ===== 启动 =====
+  init();
+})();
+</script>
+</body>
+</html>
